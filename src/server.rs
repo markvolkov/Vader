@@ -3,26 +3,30 @@ use std::net::{ TcpListener, TcpStream };
 use std::io::{ BufReader, BufRead, Write };
 use std::thread;
 
+#[derive(Copy, Clone, Debug)]
 pub struct Server {
-    options: ServerOptions,
-    listener: TcpListener,
+    pub options: &'static ServerOptions,
+    pub heartbeats: usize,
 }
 
 pub struct Client {
-    stream: TcpStream,
+    pub stream: TcpStream,
 }
 
 impl Server {
 
-    pub fn new(opts: ServerOptions) -> Self {
-        let portAsString: String = opts.port.to_string();
-        let _listener = TcpListener::bind(opts.host.to_string() + portAsString).unwrap();
+    pub fn new() -> Server {
         Server {
-            options: opts,
-            listener: _listener,
+            options: ServerOptions::new(),
+            heartbeats: 0,
         }
     }
 
+    pub fn get_listener(&self) -> Option<TcpListener> {
+        let connection: &'static str = "127.0.0.1:8080";
+        Some(TcpListener::bind(connection).unwrap())
+    }
+    
     pub fn serve(&self, _stream: TcpStream) -> () {
         let mut stream = BufReader::new(_stream);
         loop {
@@ -44,10 +48,18 @@ impl Server {
         Ok(())
     }
 
-    pub fn start (&'static self) -> () {
-        for stream in self.listener.incoming() {
-            thread::spawn( move || self.handleConnection(stream?) );
-        }
+    pub fn heartbeat(mut server: &mut Server) -> std::io::Result<()> {
+        (*server).heartbeats += 1;
+        println!("{}", (*server).heartbeats);
+        Ok(())
+    }
+
+    pub fn start (mut server: Server) -> () {
+        thread::spawn(move || 
+            for stream in server.get_listener().as_ref().unwrap().incoming() {
+                thread::spawn( move || server.handleConnection(stream?) );
+            }
+        );
     }
 
 }
