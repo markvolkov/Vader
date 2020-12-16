@@ -23,7 +23,7 @@ fn main() {
 fn run_simplest_server() {
     let mut someServer = Server::new(Router::new());
     someServer.router.mapRoute(Route::new("/test", "GET", |req, mut res| {
-        res.withStatus(StatusCode::Ok).write_html(contents.as_bytes());
+        res.withStatus(StatusCode::Ok).write_html(fs::read_to_string("test.html").expect("Something went wrong reading the file").as_bytes());
     }));
     Server::start(someServer);
 }
