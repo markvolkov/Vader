@@ -16,20 +16,26 @@ use std::fs;
 extern crate regex;
 
 fn main() {
-    let mut someServer = Server::new(Router {
-        strictSlash: false,
-        testRoute: Route {
-            //TODO Handle routes based on path and http method using a map handler
-            path: "/test",
-            httpMethod: "GET",
-            handler: |req, mut res| {
-                println!("{:?}", req);
-                let contents = fs::read_to_string("test.html").expect("Something went wrong reading the file");
-                res.withStatus(StatusCode::Accepted).write_html(contents.as_bytes());
-                println!("{:?}", res);
-            },
-        }
-    });
+    // run_test_server();
+    run_simplest_server();
+}
+
+fn run_simplest_server() {
+    let mut someServer = Server::new(Router::new());
+    someServer.router.mapRoute(Route::new("/test", "GET", |req, mut res| {
+        res.withStatus(StatusCode::Ok).write_html(contents.as_bytes());
+    }));
+    Server::start(someServer);
+}
+
+fn run_test_server() {
+    let mut someServer = Server::new(Router::new());
+    someServer.router.mapRoute(Route::new("/test", "GET", |req, mut res| {
+        println!("{:?}", req);
+        let contents = fs::read_to_string("test.html").expect("Something went wrong reading the file");
+        res.withStatus(StatusCode::Accepted).write_html(contents.as_bytes());
+        println!("{:?}", res);
+    }));
     Server::heartbeat(&mut someServer);
     println!("{}", someServer.heartbeats);
     Server::start(someServer);

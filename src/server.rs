@@ -11,20 +11,35 @@ use crate::response::Response;
 use crate::serveroptions::ServerOptions;
 use crate::statuscode::StatusCode;
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Clone, Debug)]
 pub struct Server {
     pub options: &'static ServerOptions,
     pub heartbeats: usize,
     pub router: Router,
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Clone, Debug)]
 pub struct Router {
     pub strictSlash: bool,
-    pub testRoute: Route,
+    pub routes: HashMap<String, Route>,
 }
 
-#[derive(Copy, Clone, Debug)]
+impl Router {
+
+    pub fn new() -> Router {
+        Router {
+            strictSlash: true,
+            routes: HashMap::new(),
+        }
+    }
+
+    pub fn mapRoute(&mut self, route: Route) {
+        self.routes.insert(route.httpMethod.clone().to_owned() + route.path, route);
+    }
+
+}
+
+#[derive(Clone, Debug)]
 pub struct Route {
     //Route path
     pub handler: fn(Request, Response),
@@ -33,8 +48,17 @@ pub struct Route {
     pub httpMethod: &'static str,
 }
 
-pub struct Client {
-    pub stream: TcpStream,
+
+impl Route {
+
+    pub fn new(path: &'static str, httpMethod: &'static str, handler: fn(Request, Response)) -> Route {
+        Route {
+            path: path,
+            httpMethod: httpMethod,
+            handler: handler,
+        }
+    }
+
 }
 
 impl Server {
@@ -48,7 +72,7 @@ impl Server {
     }
 
     pub fn get_listener(&self) -> Option<TcpListener> {
-        let mut host: String = (self.options.host.to_owned());
+        let mut host: String = self.options.host.to_owned();
         host.push_str(":");
         host.push_str(&self.options.port.to_string()[..]);
         Some(TcpListener::bind(host).unwrap())
@@ -107,10 +131,15 @@ impl Server {
         println!("Running");
         println!("{:?}", server.get_listener().as_ref().unwrap());
         for stream in server.get_listener().as_ref().unwrap().incoming() {
-            thread::spawn( move || {
-                let (req, res) = server.handleConnection(&stream.unwrap()).unwrap();
-                (server.router.testRoute.handler)(req, res);
-            });
+           let (req, mut res) = server.handleConnection(&stream.unwrap()).unwrap();
+                match server.router.routes.get(&(req.requestMethod.clone().to_owned() + req.path)) {
+                    Some(route) => {
+                        (route.handler)(req, res);
+                    }, 
+                    _ => {
+                       res.sendStatus(StatusCode::NotFound);
+                    }
+            };
         }
     }
 
