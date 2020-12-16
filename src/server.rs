@@ -34,7 +34,7 @@ impl Router{
         }
     }
 
-    pub fn mapRoute(&mut self, route: Route) {
+    fn mapRoute(&mut self, route: Route) {
         self.routes.insert(route.httpMethod.clone().to_owned() + route.path, route);
     }
 
@@ -79,45 +79,102 @@ impl Server {
         Some(TcpListener::bind(host).unwrap())
     }
 
+    pub fn mapRoute(&mut self, route: Route) {
+        self.router.mapRoute(route);
+    }
+
     pub fn handleConnection(&self, mut _stream:  &TcpStream) -> std::io::Result<(Request, Response)> {
         let mut byteBuffer = [0; 2048];
         _stream.read(&mut byteBuffer).unwrap();
-        // println!("Request: \n{}", String::from_utf8_lossy(&byteBuffer[..]));
+;
         let buffer = String::from_utf8_lossy(&byteBuffer[..]).to_string();
         let mut request = Request::new();
-        //Assuming we are only getting valid input
+
         let requestHeaderRegex = Regex::new(r"^(\w+) (\S+) HTTP/1.1").unwrap();
         let hostRegex = Regex::new(r"Host: (\S+)").unwrap();
         let contentTypeRegex = Regex::new(r"Content-Type: (\S+)").unwrap();
-        let userAgentRegex = Regex::new(r"User-Agent: (\S+)").unwrap();
         let contentLengthRegex = Regex::new(r"content-length: (\d+)").unwrap();
         let contentRegex = Regex::new(r"Connection: (\S+)").unwrap();
+        let userAgentRegex = Regex::new(r"User-Agent: (\S+)").unwrap();
 
         assert!(requestHeaderRegex.is_match(&buffer.to_string())); 
 
         let bufferwithStaticLifetime: &'static str = Box::leak(buffer.into_boxed_str());
-        let headerCaptures = requestHeaderRegex.captures(bufferwithStaticLifetime).ok_or("Error parsing request...").unwrap();
-        let hostCaptures = hostRegex.captures(bufferwithStaticLifetime).ok_or("Error parsing request...").unwrap();
-        let contentTypeCaptures = contentTypeRegex.captures(bufferwithStaticLifetime).ok_or("Error parsing request...").unwrap();
-        let contentLengthCaptures = contentLengthRegex.captures(bufferwithStaticLifetime).ok_or("Error parsing request...").unwrap();
-        let contentCaptures = contentRegex.captures(bufferwithStaticLifetime).ok_or("Error parsing request...").unwrap();
-        let userAgentCaptures = userAgentRegex.captures(bufferwithStaticLifetime).ok_or("Error parsing request...").unwrap();
 
-        let host = hostCaptures.get(1).unwrap().as_str();
-        let contentType = contentTypeCaptures.get(1).unwrap().as_str();
-        let contentLength = contentLengthCaptures.get(1).unwrap().as_str();
-        let userAgent = userAgentCaptures.get(1).unwrap().as_str();
+        let mut request_method;
+        match requestHeaderRegex.captures(bufferwithStaticLifetime) {
+            Some(captures) => {
+                request_method = captures.get(1).unwrap().as_str();
+            },
+            None => {
+                request_method = "";
+            }
+        }
+
+        let mut request_path;
+        match requestHeaderRegex.captures(bufferwithStaticLifetime) {
+            Some(captures) => {
+                request_path = captures.get(2).unwrap().as_str();
+            },
+            None => {
+                request_path = "";
+            }
+        }
+
+        let mut host;
+        match hostRegex.captures(bufferwithStaticLifetime) {
+            Some(captures) => {
+                host = captures.get(1).unwrap().as_str();
+            },
+            None => {
+                host = "";
+            }
+        }
+
+        let mut content_type;
+        match contentTypeRegex.captures(bufferwithStaticLifetime) {
+            Some(captures) => {
+                content_type = captures.get(1).unwrap().as_str();
+            },
+            None => {
+                content_type = "text/html";
+            }
+        }
+
+        let mut content_length;
+        match contentTypeRegex.captures(bufferwithStaticLifetime) {
+            Some(captures) => {
+                content_length = captures.get(1).unwrap().as_str();
+            },
+            None => {
+                content_length = "0";
+            }
+        }
+
+        let mut user_agent;
+        match userAgentRegex.captures(bufferwithStaticLifetime) {
+            Some(captures) => {
+                user_agent = captures.get(1).unwrap().as_str();
+            },
+            None => {
+                user_agent = "";
+            }
+        }
 
         let mut response = Response::new(_stream.try_clone()?);
-        response.contentLength = contentLength.parse::<usize>().unwrap();
+        response.contentLength = content_length.parse::<usize>().unwrap();
 
         request.host = host;
-        request.contentType = contentType;
-        request.userAgent = userAgent;
-        request.requestMethod = headerCaptures.get(1).unwrap().as_str();
-        request.path = headerCaptures.get(2).unwrap().as_str(); 
-        request.body = &bufferwithStaticLifetime[contentCaptures.get(1).unwrap().end() + 1
-                       .. contentCaptures.get(1).unwrap().end() + 1 + contentLength.parse::<usize>().unwrap()];
+        request.contentType = content_type;
+        request.userAgent = user_agent;
+        request.requestMethod = request_method;
+        request.path = request_path;
+
+        let mut content: &'static str;
+        if let Some(content) = contentRegex.captures(bufferwithStaticLifetime) {
+            request.body = &bufferwithStaticLifetime[content.get(1).unwrap().end() + 1..content.get(1).unwrap().end() + 1 + content_length.parse::<usize>().unwrap()];
+        }
+
         Ok((request, response))
     }
 

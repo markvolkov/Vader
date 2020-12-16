@@ -23,7 +23,7 @@ fn main() {
 
 fn run_simplest_server() {
     let mut someServer = Server::new(Router::new());
-    someServer.router.mapRoute(Route::new("/test", "GET", |_req, mut res| {
+    someServer.mapRoute(Route::new("/test", "GET", |_req, mut res| {
         res.withStatus(StatusCode::Ok).write_html(fs::read_to_string("test.html").expect("Something went wrong reading the file").as_bytes());
     }));
     someServer.start();
@@ -31,7 +31,7 @@ fn run_simplest_server() {
 
 fn run_test_server() {
     let mut someServer = Server::new(Router::new());
-    someServer.router.mapRoute(Route::new("/test", "GET", |_req, mut res| {
+    someServer.mapRoute(Route::new("/test", "GET", |_req, mut res| {
         println!("{:?}", _req);
         let contents = fs::read_to_string("test.html").expect("Something went wrong reading the file");
         res.withStatus(StatusCode::Accepted).write_html(contents.as_bytes());

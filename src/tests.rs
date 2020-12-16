@@ -13,7 +13,7 @@ mod tests {
     }
 
     #[test]
-    pub fn testServer() -> () {
+    pub fn testServerHeartbeats() -> () {
         let mut someServer = Server::new();
         Server::heartbeat(&mut someServer);
         assert_eq!(someServer.heartbeats, 1);
