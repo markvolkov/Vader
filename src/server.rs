@@ -1,8 +1,9 @@
 use std::net::{ TcpListener, TcpStream };
 use std::io::prelude::*;
 use std::io::{ BufReader, BufRead, BufWriter, Error, ErrorKind };
-use std::thread;
+// use std::thread;
 use regex::Regex;
+use crossbeam_utils::thread;
 use std::fs;
 use std::collections::HashMap;
 
@@ -24,7 +25,7 @@ pub struct Router {
     pub routes: HashMap<String, Route>,
 }
 
-impl Router {
+impl Router{
 
     pub fn new() -> Router {
         Router {
@@ -82,8 +83,7 @@ impl Server {
         let mut byteBuffer = [0; 2048];
         _stream.read(&mut byteBuffer).unwrap();
         // println!("Request: \n{}", String::from_utf8_lossy(&byteBuffer[..]));
-        let mut stream = BufReader::new(_stream);
-        let mut buffer = String::from_utf8_lossy(&byteBuffer[..]).to_string();
+        let buffer = String::from_utf8_lossy(&byteBuffer[..]).to_string();
         let mut request = Request::new();
         //Assuming we are only getting valid input
         let requestHeaderRegex = Regex::new(r"^(\w+) (\S+) HTTP/1.1").unwrap();
@@ -92,7 +92,7 @@ impl Server {
         let userAgentRegex = Regex::new(r"User-Agent: (\S+)").unwrap();
         let contentLengthRegex = Regex::new(r"content-length: (\d+)").unwrap();
         let contentRegex = Regex::new(r"Connection: (\S+)").unwrap();
-        let contentEndsRegex = Regex::new(r"$^").unwrap();
+
         assert!(requestHeaderRegex.is_match(&buffer.to_string())); 
 
         let bufferwithStaticLifetime: &'static str = Box::leak(buffer.into_boxed_str());
@@ -127,19 +127,24 @@ impl Server {
         Ok(())
     }
 
-    pub fn start (server: Server) -> () {
+    pub fn start(&mut self) {
         println!("Running");
-        println!("{:?}", server.get_listener().as_ref().unwrap());
-        for stream in server.get_listener().as_ref().unwrap().incoming() {
-           let (req, mut res) = server.handleConnection(&stream.unwrap()).unwrap();
-                match server.router.routes.get(&(req.requestMethod.clone().to_owned() + req.path)) {
-                    Some(route) => {
-                        (route.handler)(req, res);
-                    }, 
-                    _ => {
-                       res.sendStatus(StatusCode::NotFound);
+        println!("{:?}", self.get_listener().as_ref().unwrap());
+        for stream in self.get_listener().as_ref().unwrap().incoming() {
+            thread::scope(|s| {
+                s.spawn(|_| {
+                    let (req, mut res) = self.handleConnection(&stream.unwrap()).unwrap();
+                    let result = self.router.routes.get(&(req.requestMethod.clone().to_owned() + req.path));
+                    match result {
+                        Some(route) => {
+                            (route.handler)(req, res);
+                        }, 
+                        _ => {
+                            res.sendStatus(StatusCode::NotFound);
+                        }
                     }
-            };
+                });
+            });
         }
     }
 
