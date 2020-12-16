@@ -1,4 +1,5 @@
 #[derive(Copy, Clone, Debug)]
+#[allow(dead_code)]
 pub enum StatusCode {
 
     Continue = 100,
@@ -27,7 +28,7 @@ pub enum StatusCode {
 
 }
 
-
+#[allow(dead_code)]
 impl StatusCode {
 
     pub fn values() -> std::slice::Iter<'static, StatusCode> {
@@ -38,7 +39,7 @@ impl StatusCode {
         return STATUSCODES.iter();
     }
 
-    pub fn printValues() -> () {
+    pub fn print_values() -> () {
         for sc in StatusCode::values() {
             println!("{:?}", sc);
         }
@@ -47,9 +48,10 @@ impl StatusCode {
 }
 
 impl std::fmt::Display for StatusCode {
+
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "{:?}", self)
-        // or, alternatively:
         // fmt::Debug::fmt(self, f)
     }
+
 }

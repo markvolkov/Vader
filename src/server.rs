@@ -1,10 +1,9 @@
 use std::net::{ TcpListener, TcpStream };
 use std::io::prelude::*;
-use std::io::{ BufReader, BufRead, BufWriter, Error, ErrorKind };
+// use std::io::{ BufReader, BufRead, BufWriter, Error, ErrorKind };
 // use std::thread;
 use regex::Regex;
 use crossbeam_utils::thread;
-use std::fs;
 use std::collections::HashMap;
 
 use crate::request::Request;
@@ -21,7 +20,7 @@ pub struct Server {
 
 #[derive(Clone, Debug)]
 pub struct Router {
-    pub strictSlash: bool,
+    pub strict_slash: bool,
     pub routes: HashMap<String, Route>,
 }
 
@@ -29,13 +28,13 @@ impl Router{
 
     pub fn new() -> Router {
         Router {
-            strictSlash: true,
+            strict_slash: true,
             routes: HashMap::new(),
         }
     }
 
-    fn mapRoute(&mut self, route: Route) {
-        self.routes.insert(route.httpMethod.clone().to_owned() + route.path, route);
+    fn map_route(&mut self, route: Route) {
+        self.routes.insert(route.http_method.clone().to_owned() + route.path, route);
     }
 
 }
@@ -46,16 +45,16 @@ pub struct Route {
     pub handler: fn(Request, Response),
     pub path: &'static str,
     //Route request type(GET, POST, UPDATE...)
-    pub httpMethod: &'static str,
+    pub http_method: &'static str,
 }
 
 
 impl Route {
 
-    pub fn new(path: &'static str, httpMethod: &'static str, handler: fn(Request, Response)) -> Route {
+    pub fn new(path: &'static str, http_method: &'static str, handler: fn(Request, Response)) -> Route {
         Route {
             path: path,
-            httpMethod: httpMethod,
+            http_method: http_method,
             handler: handler,
         }
     }
@@ -79,30 +78,29 @@ impl Server {
         Some(TcpListener::bind(host).unwrap())
     }
 
-    pub fn mapRoute(&mut self, route: Route) {
-        self.router.mapRoute(route);
+    pub fn map_route(&mut self, route: Route) {
+        self.router.map_route(route);
     }
 
-    pub fn handleConnection(&self, mut _stream:  &TcpStream) -> std::io::Result<(Request, Response)> {
-        let mut byteBuffer = [0; 2048];
-        _stream.read(&mut byteBuffer).unwrap();
-;
-        let buffer = String::from_utf8_lossy(&byteBuffer[..]).to_string();
+    pub fn handle_connection(&self, mut  stream:  &TcpStream) -> std::io::Result<(Request, Response)> {
+        let mut byte_buffer = [0; 2048];
+        stream.read(&mut byte_buffer).unwrap();
+        let buffer = String::from_utf8_lossy(&byte_buffer[..]).to_string();
+
         let mut request = Request::new();
+        let request_header_regex = Regex::new(r"^(\w+) (\S+) HTTP/1.1").unwrap();
+        let host_regex = Regex::new(r"Host: (\S+)").unwrap();
+        let content_type_regex = Regex::new(r"Content-Type: (\S+)").unwrap();
+        let content_length_regex = Regex::new(r"content-length: (\d+)").unwrap();
+        let content_regex = Regex::new(r"Connection: (\S+)").unwrap();
+        let user_agent_regex = Regex::new(r"User-Agent: (\S+)").unwrap();
 
-        let requestHeaderRegex = Regex::new(r"^(\w+) (\S+) HTTP/1.1").unwrap();
-        let hostRegex = Regex::new(r"Host: (\S+)").unwrap();
-        let contentTypeRegex = Regex::new(r"Content-Type: (\S+)").unwrap();
-        let contentLengthRegex = Regex::new(r"content-length: (\d+)").unwrap();
-        let contentRegex = Regex::new(r"Connection: (\S+)").unwrap();
-        let userAgentRegex = Regex::new(r"User-Agent: (\S+)").unwrap();
+        assert!(request_header_regex.is_match(&buffer.to_string())); 
 
-        assert!(requestHeaderRegex.is_match(&buffer.to_string())); 
+        let bufferwith_static_lifetime: &'static str = Box::leak(buffer.into_boxed_str());
 
-        let bufferwithStaticLifetime: &'static str = Box::leak(buffer.into_boxed_str());
-
-        let mut request_method;
-        match requestHeaderRegex.captures(bufferwithStaticLifetime) {
+        let request_method;
+        match request_header_regex.captures(bufferwith_static_lifetime) {
             Some(captures) => {
                 request_method = captures.get(1).unwrap().as_str();
             },
@@ -111,8 +109,8 @@ impl Server {
             }
         }
 
-        let mut request_path;
-        match requestHeaderRegex.captures(bufferwithStaticLifetime) {
+        let request_path;
+        match request_header_regex.captures(bufferwith_static_lifetime) {
             Some(captures) => {
                 request_path = captures.get(2).unwrap().as_str();
             },
@@ -121,8 +119,8 @@ impl Server {
             }
         }
 
-        let mut host;
-        match hostRegex.captures(bufferwithStaticLifetime) {
+        let host;
+        match host_regex.captures(bufferwith_static_lifetime) {
             Some(captures) => {
                 host = captures.get(1).unwrap().as_str();
             },
@@ -131,8 +129,8 @@ impl Server {
             }
         }
 
-        let mut content_type;
-        match contentTypeRegex.captures(bufferwithStaticLifetime) {
+        let content_type;
+        match content_type_regex.captures(bufferwith_static_lifetime) {
             Some(captures) => {
                 content_type = captures.get(1).unwrap().as_str();
             },
@@ -141,8 +139,8 @@ impl Server {
             }
         }
 
-        let mut content_length;
-        match contentTypeRegex.captures(bufferwithStaticLifetime) {
+        let content_length;
+        match content_length_regex.captures(bufferwith_static_lifetime) {
             Some(captures) => {
                 content_length = captures.get(1).unwrap().as_str();
             },
@@ -151,8 +149,8 @@ impl Server {
             }
         }
 
-        let mut user_agent;
-        match userAgentRegex.captures(bufferwithStaticLifetime) {
+        let user_agent;
+        match user_agent_regex.captures(bufferwith_static_lifetime) {
             Some(captures) => {
                 user_agent = captures.get(1).unwrap().as_str();
             },
@@ -161,27 +159,27 @@ impl Server {
             }
         }
 
-        let mut response = Response::new(_stream.try_clone()?);
-        response.contentLength = content_length.parse::<usize>().unwrap();
+        let mut response = Response::new(stream.try_clone()?);
+        response.content_length = content_length.parse::<usize>().unwrap();
 
         request.host = host;
-        request.contentType = content_type;
-        request.userAgent = user_agent;
-        request.requestMethod = request_method;
+        request.content_type = content_type;
+        request.user_agent = user_agent;
+        request.request_method = request_method;
         request.path = request_path;
 
-        let mut content: &'static str;
-        if let Some(content) = contentRegex.captures(bufferwithStaticLifetime) {
-            request.body = &bufferwithStaticLifetime[content.get(1).unwrap().end() + 1..content.get(1).unwrap().end() + 1 + content_length.parse::<usize>().unwrap()];
+        let mut _content: &'static str;
+        if let Some(_content) = content_regex.captures(bufferwith_static_lifetime) {
+            request.body = &bufferwith_static_lifetime[_content.get(1).unwrap().end() + 1.. _content.get(1).unwrap().end() + 1 + content_length.parse::<usize>().unwrap()];
         }
 
         Ok((request, response))
     }
 
-    pub fn heartbeat(mut server: &mut Server) -> std::io::Result<()> {
-        (*server).heartbeats += 1;
-        println!("{}", (*server).heartbeats);
-        Ok(())
+    pub fn heartbeat(&mut self) -> &mut Server {
+        self.heartbeats += 1;
+        println!("{}", self.heartbeats);
+        self
     }
 
     pub fn start(&mut self) {
@@ -190,14 +188,14 @@ impl Server {
         for stream in self.get_listener().as_ref().unwrap().incoming() {
             thread::scope(|s| {
                 s.spawn(|_| {
-                    let (req, mut res) = self.handleConnection(&stream.unwrap()).unwrap();
-                    let result = self.router.routes.get(&(req.requestMethod.clone().to_owned() + req.path));
+                    let (req, mut res) = self.handle_connection(&stream.unwrap()).unwrap();
+                    let result = self.router.routes.get(&(req.request_method.clone().to_owned() + req.path));
                     match result {
                         Some(route) => {
                             (route.handler)(req, res);
                         }, 
                         _ => {
-                            res.sendStatus(StatusCode::NotFound);
+                            res.send_status(StatusCode::NotFound);
                         }
                     }
                 });

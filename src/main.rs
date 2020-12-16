@@ -7,9 +7,6 @@ mod tests;
 use server::Server;
 use server::Router;
 use server::Route;
-use serveroptions::ServerOptions;
-use request::Request;
-use response::Response;
 use statuscode::StatusCode;
 use std::fs;
 
@@ -22,22 +19,22 @@ fn main() {
 }
 
 fn run_simplest_server() {
-    let mut someServer = Server::new(Router::new());
-    someServer.mapRoute(Route::new("/test", "GET", |_req, mut res| {
-        res.withStatus(StatusCode::Ok).write_html(fs::read_to_string("test.html").expect("Something went wrong reading the file").as_bytes());
+    let mut some_server = Server::new(Router::new());
+    some_server.map_route(Route::new("/test", "GET", |_req, mut res| {
+        res.with_status(StatusCode::Ok).write_html(fs::read_to_string("test.html").expect("Something went wrong reading the file").as_bytes());
     }));
-    someServer.start();
+    some_server.start();
 }
 
 fn run_test_server() {
-    let mut someServer = Server::new(Router::new());
-    someServer.mapRoute(Route::new("/test", "GET", |_req, mut res| {
+    let mut some_server = Server::new(Router::new());
+    some_server.map_route(Route::new("/test", "GET", |_req, mut res| {
         println!("{:?}", _req);
         let contents = fs::read_to_string("test.html").expect("Something went wrong reading the file");
-        res.withStatus(StatusCode::Accepted).write_html(contents.as_bytes());
+        res.with_status(StatusCode::Accepted).write_html(contents.as_bytes());
         println!("{:?}", res);
     }));
-    Server::heartbeat(&mut someServer);
-    println!("{}", someServer.heartbeats);
-    someServer.start()
+    some_server.heartbeat();
+    println!("{}", some_server.heartbeats);
+    some_server.start()
 }

@@ -5,8 +5,8 @@ use crate::statuscode::StatusCode;
 
 #[derive(Debug)]
 pub struct Response {
-    pub contentLength: usize,
-    pub statusCode: StatusCode,
+    pub content_length: usize,
+    pub status_code: StatusCode,
     stream: TcpStream,
 }
 
@@ -14,40 +14,40 @@ impl Response {
     
     pub fn new(mut _stream: TcpStream) -> Response {
         Response {
-            contentLength: 0,
+            content_length: 0,
             stream: _stream,
-            statusCode: StatusCode::Ok,
+            status_code: StatusCode::Ok,
         }
     }
 
-    pub fn withStatus(&mut self, statusCode: StatusCode) -> &mut Self {
-        self.statusCode = statusCode;
+    pub fn with_status(&mut self, status_code: StatusCode) -> &mut Self {
+        self.status_code = status_code;
         self
     }
 
-    pub fn sendStatus(&mut self, statusCode: StatusCode) {
-        self.withStatus(statusCode);
-        let responseHeader = format!(
-                            "{}", "HTTP/1.1 ".to_owned() + &(self.statusCode as u16).to_string() 
-                            + " " + &self.statusCode.to_string() + "\r\n\r\n"
+    pub fn send_status(&mut self, status_code: StatusCode) {
+        self.with_status(status_code);
+        let response_header = format!(
+                            "{}", "HTTP/1.1 ".to_owned() + &(self.status_code as u16).to_string() 
+                            + " " + &self.status_code.to_string() + "\r\n\r\n"
         );
-        self.write(responseHeader.as_bytes());
+        self.write(response_header.as_bytes());
         self.complete();
     }
 
 
     pub fn write(&mut self, bytes: &[u8]) -> &mut Self {
-        self.contentLength += bytes.len();
+        self.content_length += bytes.len();
         self.stream.write(bytes).unwrap();
         self
     }
 
     pub fn write_html(&mut self, bytes: &[u8]) -> &mut Self {
-        let responseHeader = format!(
-                            "{}", "HTTP/1.1 ".to_owned() + &(self.statusCode as u16).to_string() 
-                            + " " + &self.statusCode.to_string() + "\r\n\r\n"
+        let response_header = format!(
+                            "{}", "HTTP/1.1 ".to_owned() + &(self.status_code as u16).to_string() 
+                            + " " + &self.status_code.to_string() + "\r\n\r\n"
         );
-        self.write(responseHeader.as_bytes());
+        self.write(response_header.as_bytes());
         self.write(bytes);
         self.complete();
         self
