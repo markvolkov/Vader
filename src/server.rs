@@ -1,11 +1,10 @@
 use std::net::{ TcpListener, TcpStream };
 use std::io::prelude::*;
-// use std::io::{ BufReader, BufRead, BufWriter, Error, ErrorKind };
-// use std::thread;
 use regex::Regex;
 use crossbeam_utils::thread;
 use std::collections::HashMap;
-
+use scoped_threadpool::Pool;
+// use crate::pool::ThreadPool;
 use crate::request::Request;
 use crate::response::Response;
 use crate::serveroptions::ServerOptions;
@@ -19,12 +18,12 @@ pub struct Server {
 }
 
 #[derive(Clone, Debug)]
-pub struct Router {
+pub struct Router{
     pub strict_slash: bool,
     pub routes: HashMap<String, Route>,
 }
 
-impl Router{
+impl Router {
 
     pub fn new() -> Router {
         Router {
@@ -41,13 +40,10 @@ impl Router{
 
 #[derive(Clone, Debug)]
 pub struct Route {
-    //Route path
     pub handler: fn(Request, Response),
     pub path: &'static str,
-    //Route request type(GET, POST, UPDATE...)
     pub http_method: &'static str,
 }
-
 
 impl Route {
 
@@ -176,24 +172,25 @@ impl Server {
         Ok((request, response))
     }
 
-    pub fn heartbeat(&mut self) -> &mut Server {
+    pub fn heartbeat(&mut self) -> &mut Self {
         self.heartbeats += 1;
         println!("{}", self.heartbeats);
         self
     }
 
-    pub fn start(&mut self) {
+    pub fn start(&self) {
         println!("Running");
         println!("{:?}", self.get_listener().as_ref().unwrap());
+        let mut pool = Pool::new(4);
         for stream in self.get_listener().as_ref().unwrap().incoming() {
-            thread::scope(|s| {
-                s.spawn(|_| {
+            pool.scoped(|scope| {
+                scope.execute(move || {
                     let (req, mut res) = self.handle_connection(&stream.unwrap()).unwrap();
                     let result = self.router.routes.get(&(req.request_method.clone().to_owned() + req.path));
                     match result {
                         Some(route) => {
                             (route.handler)(req, res);
-                        }, 
+                        },
                         _ => {
                             res.send_status(StatusCode::NotFound);
                         }
