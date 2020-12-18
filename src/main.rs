@@ -25,6 +25,10 @@ fn run_simplest_server() {
     some_server.map_route(Route::new("/test", "GET", |_req, mut res| {
         res.with_status(StatusCode::Ok).write_html(fs::read_to_string("test.html").expect("Something went wrong reading the file").as_bytes());
     }));
+    some_server.map_route(Route::new("/test", "POST", |_req, mut res| {
+        println!("{}", _req.body);
+        res.with_status(StatusCode::Ok).write_html(_req.body.as_bytes());
+    }));
     some_server.start();
 }
 

@@ -87,7 +87,7 @@ impl Server {
         let request_header_regex = Regex::new(r"^(\w+) (\S+) HTTP/1.1").unwrap();
         let host_regex = Regex::new(r"Host: (\S+)").unwrap();
         let content_type_regex = Regex::new(r"Content-Type: (\S+)").unwrap();
-        let content_length_regex = Regex::new(r"content-length: (\d+)").unwrap();
+        let content_length_regex = Regex::new(r"(?i)Content-Length: (\d+)").unwrap();
         let content_regex = Regex::new(r"Connection: (\S+)").unwrap();
         let user_agent_regex = Regex::new(r"User-Agent: (\S+)").unwrap();
 
@@ -131,7 +131,7 @@ impl Server {
                 content_type = captures.get(1).unwrap().as_str();
             },
             None => {
-                content_type = "text/html";
+                content_type = "";
             }
         }
 
@@ -141,7 +141,7 @@ impl Server {
                 content_length = captures.get(1).unwrap().as_str();
             },
             None => {
-                content_length = "0";
+                content_length = "";
             }
         }
 
@@ -156,19 +156,23 @@ impl Server {
         }
 
         let mut response = Response::new(stream.try_clone()?);
-        response.content_length = content_length.parse::<usize>().unwrap();
+        if content_length != "" {
+            response.content_length = content_length.parse::<usize>().unwrap();
+        }
 
         request.host = host;
         request.content_type = content_type;
         request.user_agent = user_agent;
         request.request_method = request_method;
         request.path = request_path;
-
+        
         let mut _content: &'static str;
-        if let Some(_content) = content_regex.captures(bufferwith_static_lifetime) {
-            request.body = &bufferwith_static_lifetime[_content.get(1).unwrap().end() + 1.. _content.get(1).unwrap().end() + 1 + content_length.parse::<usize>().unwrap()];
+        println!("{:?}", content_length);
+        if content_length != "" {
+            if let Some(_content) = content_regex.captures(bufferwith_static_lifetime) {
+                request.body = &bufferwith_static_lifetime[_content.get(1).unwrap().end() + 4 .. _content.get(1).unwrap().end() + 4 + content_length.parse::<usize>().unwrap()];
+            }
         }
-
         Ok((request, response))
     }
 
