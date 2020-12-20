@@ -1,11 +1,11 @@
 #[derive(Copy, Clone, Debug)]
-pub struct ServerOptions {
-    pub host: &'static str,
+pub struct ServerOptions<'a> {
+    pub host: &'a str,
     pub port: usize,
 }
 
-impl ServerOptions {
-    pub fn new() -> &'static Self {
+impl<'a> ServerOptions<'a> {
+    pub fn new<'b>() -> &'a Self {
         &ServerOptions {
             host: "127.0.0.1",
             port: 8080,

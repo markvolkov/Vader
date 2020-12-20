@@ -11,8 +11,8 @@ use crate::serveroptions::ServerOptions;
 use crate::statuscode::StatusCode;
 
 #[derive(Clone, Debug)]
-pub struct Server {
-    pub options: &'static ServerOptions,
+pub struct Server<'a> {
+    pub options: &'a ServerOptions<'a>,
     pub heartbeats: usize,
     pub router: Router,
 }
@@ -57,11 +57,11 @@ impl Route {
 
 }
 
-impl Server {
+impl<'a> Server<'a> {
 
-    pub fn new(router: Router) -> Server {
+    pub fn new<'b>(router: Router) -> Server<'a> {
         Server {
-            options: ServerOptions::new(),
+            options: &ServerOptions::new(),
             heartbeats: 0,
             router: router,
         }
@@ -78,7 +78,7 @@ impl Server {
         self.router.map_route(route);
     }
 
-    pub fn handle_connection(&self, mut  stream:  &TcpStream) -> std::io::Result<(Request, Response)> {
+    pub fn handle_connection(&self, mut stream:  &mut TcpStream) -> std::io::Result<(Request, Response)> {
         let mut byte_buffer = [0; 2048];
         stream.read(&mut byte_buffer).unwrap();
         let buffer = String::from_utf8_lossy(&byte_buffer[..]).to_string();
@@ -189,7 +189,7 @@ impl Server {
         for stream in self.get_listener().as_ref().unwrap().incoming() {
             pool.scoped(|scope| {
                 scope.execute(move || {
-                    let (req, mut res) = self.handle_connection(&stream.unwrap()).unwrap();
+                    let (req, mut res) = self.handle_connection(&mut stream.unwrap()).unwrap();
                     let result = self.router.routes.get(&(req.request_method.clone().to_owned() + req.path));
                     match result {
                         Some(route) => {
