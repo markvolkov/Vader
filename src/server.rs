@@ -67,11 +67,11 @@ impl<'a> Server<'a> {
         }
     }
 
-    pub fn get_listener(&self) -> Option<TcpListener> {
+    pub fn get_listener(&self) -> std::io::Result<TcpListener> {
         let mut host: String = self.options.host.to_owned();
         host.push_str(":");
         host.push_str(&self.options.port.to_string()[..]);
-        Some(TcpListener::bind(host).unwrap())
+        Ok(TcpListener::bind(host).unwrap())
     }
 
     pub fn map_route(&mut self, route: &'a Route<'a>) {
@@ -183,17 +183,18 @@ impl<'a> Server<'a> {
     }
 
     pub fn start(&self) {
+        let tcpListener: TcpListener = self.get_listener().unwrap();
         println!("Running");
-        println!("{:?}", self.get_listener().as_ref().unwrap());
+        println!("{:?}", tcpListener);
         let mut pool = Pool::new(4);
-        for stream in self.get_listener().as_ref().unwrap().incoming() {
-            pool.scoped(|scope| {
+        for stream in tcpListener.incoming() {
+            pool.scoped(| scope | {
                 scope.execute(move || {
                     let (req, mut res) = self.handle_connection(&mut stream.unwrap()).unwrap();
                     let result = self.router.routes.get(&(req.request_method.clone().to_owned() + req.path));
                     match result {
                         Some(route) => {
-                            (route.handler)(req, res);
+                            ( route.handler )( req , res );
                         },
                         _ => {
                             res.send_status(StatusCode::NotFound);
