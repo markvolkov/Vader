@@ -14,40 +14,40 @@ use crate::statuscode::StatusCode;
 pub struct Server<'a> {
     pub options: &'a ServerOptions<'a>,
     pub heartbeats: usize,
-    pub router: Router,
+    pub router: Router<'a>,
 }
 
 #[derive(Clone, Debug)]
-pub struct Router{
+pub struct Router<'a> {
     pub strict_slash: bool,
-    pub routes: HashMap<String, Route>,
+    pub routes: HashMap<String, &'a Route<'a>>,
 }
 
-impl Router {
+impl<'a> Router<'a> {
 
-    pub fn new() -> Router {
+    pub fn new() -> Router<'a> {
         Router {
             strict_slash: true,
             routes: HashMap::new(),
         }
     }
 
-    fn map_route(&mut self, route: Route) {
+    fn map_route(&mut self, route: &'a Route<'a>) {
         self.routes.insert(route.http_method.clone().to_owned() + route.path, route);
     }
 
 }
 
 #[derive(Clone, Debug)]
-pub struct Route {
+pub struct Route<'a> {
     pub handler: fn(Request, Response),
-    pub path: &'static str,
-    pub http_method: &'static str,
+    pub path: &'a str,
+    pub http_method: &'a str,
 }
 
-impl Route {
+impl<'a> Route<'a> {
 
-    pub fn new(path: &'static str, http_method: &'static str, handler: fn(Request, Response)) -> Route {
+    pub fn new(path: &'a str, http_method: &'a str, handler: fn(Request, Response)) -> Route<'a> {
         Route {
             path: path,
             http_method: http_method,
@@ -59,7 +59,7 @@ impl Route {
 
 impl<'a> Server<'a> {
 
-    pub fn new<'b>(router: Router) -> Server<'a> {
+    pub fn new<'b>(router: Router<'a>) -> Server<'a> {
         Server {
             options: &ServerOptions::new(),
             heartbeats: 0,
@@ -74,11 +74,11 @@ impl<'a> Server<'a> {
         Some(TcpListener::bind(host).unwrap())
     }
 
-    pub fn map_route(&mut self, route: Route) {
+    pub fn map_route(&mut self, route: &'a Route<'a>) {
         self.router.map_route(route);
     }
 
-    pub fn handle_connection(&self, mut stream:  &mut TcpStream) -> std::io::Result<(Request, Response)> {
+    pub fn handle_connection(&self, stream:  &mut TcpStream) -> std::io::Result<(Request, Response)> {
         let mut byte_buffer = [0; 2048];
         stream.read(&mut byte_buffer).unwrap();
         let buffer = String::from_utf8_lossy(&byte_buffer[..]).to_string();
@@ -166,7 +166,7 @@ impl<'a> Server<'a> {
         request.request_method = request_method;
         request.path = request_path;
         
-        let mut _content: &'static str;
+        let mut _content: &'a str;
         println!("{:?}", content_length);
         if content_length != "" {
             if let Some(_content) = content_regex.captures(bufferwith_static_lifetime) {
