@@ -5,7 +5,7 @@ pub struct ServerOptions<'a> {
 }
 
 impl<'a> ServerOptions<'a> {
-    pub fn new<'b>() -> &'a Self {
+    pub fn new() -> &'a Self {
         &ServerOptions {
             host: "127.0.0.1",
             port: 8080,

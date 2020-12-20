@@ -59,7 +59,7 @@ impl<'a> Route<'a> {
 
 impl<'a> Server<'a> {
 
-    pub fn new<'b>(router: Router<'a>) -> Server<'a> {
+    pub fn new(router: Router<'a>) -> Server<'a> {
         Server {
             options: &ServerOptions::new(),
             heartbeats: 0,
