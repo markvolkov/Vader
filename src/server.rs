@@ -4,6 +4,8 @@ use regex::Regex;
 use crossbeam_utils::thread;
 use std::collections::HashMap;
 use scoped_threadpool::Pool;
+use lazy_static;
+use std::borrow::Cow;
 // use crate::pool::ThreadPool;
 use crate::request::Request;
 use crate::response::Response;
@@ -12,14 +14,14 @@ use crate::statuscode::StatusCode;
 
 #[derive(Clone, Debug)]
 pub struct Server<'a> {
-    pub options: &'a ServerOptions<'a>,
+    options: &'a ServerOptions<'a>,
     pub heartbeats: usize,
-    pub router: Router<'a>,
+    router: Router<'a>,
 }
 
 #[derive(Clone, Debug)]
 pub struct Router<'a> {
-    pub strict_slash: bool,
+    strict_slash: bool,
     pub routes: HashMap<String, &'a Route<'a>>,
 }
 
@@ -57,6 +59,15 @@ impl<'a> Route<'a> {
 
 }
 
+lazy_static! {
+    static ref REQUEST_HEADER_REGEX: Regex = Regex::new(r"^(\w+) (\S+) HTTP/1.1").unwrap();
+    static ref HOST_REGEX: Regex = Regex::new(r"Host: (\S+)").unwrap();
+    static ref CONTENT_TYPE_REGEX: Regex = Regex::new(r"Content-Type: (\S+)").unwrap();
+    static ref CONTENT_LENGTH_REGEX: Regex = Regex::new(r"(?i)Content-Length: (\d+)").unwrap();
+    static ref CONTENT_REGEX: Regex = Regex::new(r"Connection: (\S+)").unwrap();
+    static ref USER_AGENT_REGEX: Regex = Regex::new(r"User-Agent: (\S+)").unwrap();
+}
+
 impl<'a> Server<'a> {
 
     pub fn new(router: Router<'a>) -> Server<'a> {
@@ -67,11 +78,8 @@ impl<'a> Server<'a> {
         }
     }
 
-    pub fn get_listener(&self) -> std::io::Result<TcpListener> {
-        let mut host: String = self.options.host.to_owned();
-        host.push_str(":");
-        host.push_str(&self.options.port.to_string()[..]);
-        Ok(TcpListener::bind(host).unwrap())
+    pub fn get_listener(&self) -> TcpListener {
+        TcpListener::bind((self.options.host, self.options.port as u16)).unwrap()
     }
 
     pub fn map_route(&mut self, route: &'a Route<'a>) {
@@ -81,22 +89,12 @@ impl<'a> Server<'a> {
     pub fn handle_connection(&self, stream:  &mut TcpStream) -> std::io::Result<(Request, Response)> {
         let mut byte_buffer = [0; 2048];
         stream.read(&mut byte_buffer).unwrap();
-        let buffer = String::from_utf8_lossy(&byte_buffer[..]).to_string();
-
-        let mut request = Request::new();
-        let request_header_regex = Regex::new(r"^(\w+) (\S+) HTTP/1.1").unwrap();
-        let host_regex = Regex::new(r"Host: (\S+)").unwrap();
-        let content_type_regex = Regex::new(r"Content-Type: (\S+)").unwrap();
-        let content_length_regex = Regex::new(r"(?i)Content-Length: (\d+)").unwrap();
-        let content_regex = Regex::new(r"Connection: (\S+)").unwrap();
-        let user_agent_regex = Regex::new(r"User-Agent: (\S+)").unwrap();
-
-        assert!(request_header_regex.is_match(&buffer.to_string())); 
-
-        let bufferwith_static_lifetime: &'static str = Box::leak(buffer.into_boxed_str());
+        //TODO: fix lifetime issue here rustc --explain E0716
+        let buffer: &str = &String::from_utf8_lossy(&byte_buffer[..]).into_owned();
+        assert!(REQUEST_HEADER_REGEX.is_match(buffer)); 
 
         let request_method;
-        match request_header_regex.captures(bufferwith_static_lifetime) {
+        match REQUEST_HEADER_REGEX.captures(buffer) {
             Some(captures) => {
                 request_method = captures.get(1).unwrap().as_str();
             },
@@ -106,7 +104,7 @@ impl<'a> Server<'a> {
         }
 
         let request_path;
-        match request_header_regex.captures(bufferwith_static_lifetime) {
+        match REQUEST_HEADER_REGEX.captures(buffer) {
             Some(captures) => {
                 request_path = captures.get(2).unwrap().as_str();
             },
@@ -116,7 +114,7 @@ impl<'a> Server<'a> {
         }
 
         let host;
-        match host_regex.captures(bufferwith_static_lifetime) {
+        match HOST_REGEX.captures(buffer) {
             Some(captures) => {
                 host = captures.get(1).unwrap().as_str();
             },
@@ -126,7 +124,7 @@ impl<'a> Server<'a> {
         }
 
         let content_type;
-        match content_type_regex.captures(bufferwith_static_lifetime) {
+        match CONTENT_TYPE_REGEX.captures(buffer) {
             Some(captures) => {
                 content_type = captures.get(1).unwrap().as_str();
             },
@@ -136,7 +134,7 @@ impl<'a> Server<'a> {
         }
 
         let content_length;
-        match content_length_regex.captures(bufferwith_static_lifetime) {
+        match CONTENT_LENGTH_REGEX.captures(buffer) {
             Some(captures) => {
                 content_length = captures.get(1).unwrap().as_str();
             },
@@ -146,7 +144,7 @@ impl<'a> Server<'a> {
         }
 
         let user_agent;
-        match user_agent_regex.captures(bufferwith_static_lifetime) {
+        match USER_AGENT_REGEX.captures(buffer) {
             Some(captures) => {
                 user_agent = captures.get(1).unwrap().as_str();
             },
@@ -160,6 +158,7 @@ impl<'a> Server<'a> {
             response.content_length = content_length.parse::<usize>().unwrap();
         }
 
+        let mut request = Request::new();
         request.host = host;
         request.content_type = content_type;
         request.user_agent = user_agent;
@@ -169,8 +168,9 @@ impl<'a> Server<'a> {
         let mut _content: &'a str;
         println!("{:?}", content_length);
         if content_length != "" {
-            if let Some(_content) = content_regex.captures(bufferwith_static_lifetime) {
-                request.body = &bufferwith_static_lifetime[_content.get(1).unwrap().end() + 4 .. _content.get(1).unwrap().end() + 4 + content_length.parse::<usize>().unwrap()];
+            if let Some(_content) = CONTENT_REGEX.captures(buffer) {
+                //Bug is over here
+                request.body = &buffer[_content.get(1).unwrap().end() + 4 .. _content.get(1).unwrap().end() + 4 + content_length.parse::<usize>().unwrap()];
             }
         }
         Ok((request, response))
@@ -183,11 +183,11 @@ impl<'a> Server<'a> {
     }
 
     pub fn start(&self) {
-        let tcpListener: TcpListener = self.get_listener().unwrap();
+        let tcp_listener: TcpListener = self.get_listener();
         println!("Running");
-        println!("{:?}", tcpListener);
+        println!("{:?}", tcp_listener);
         let mut pool = Pool::new(4);
-        for stream in tcpListener.incoming() {
+        for stream in tcp_listener.incoming() {
             pool.scoped(| scope | {
                 scope.execute(move || {
                     let (req, mut res) = self.handle_connection(&mut stream.unwrap()).unwrap();

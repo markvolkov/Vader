@@ -82,6 +82,7 @@ name = "vader"
 version = "0.1.0"
 dependencies = [
  "crossbeam-utils",
+ "lazy_static",
  "regex",
  "scoped_threadpool",
 ]
